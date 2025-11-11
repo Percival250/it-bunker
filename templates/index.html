@@ -12,7 +12,8 @@
 
     <div class="card">
         <h2>Присоединиться к игре</h2>
-        <form action="/join_room" method="post">
+        <!-- СТАЛО -->
+        <form action="{{ url_for('join_room_action') }}" method="post"> <!-- ИЗМЕНЕНИЕ ЗДЕСЬ -->
             <input type="text" name="room_code" placeholder="Введите код комнаты" maxlength="5" required>
             <button type="submit">Войти</button>
         </form>

@@ -1,16 +1,19 @@
 {% extends 'base.html' %}
 {% block content %}
-    <h1>Игровая комната: {{ room_code }}</h1>
+    <!-- Мы используем h1 для вывода кода, а скрытый span - для доступа из JS -->
+    <h1>Игровая комната: <span id="room-code">{{ room_code }}</span></h1>
     <p>Поделитесь этим кодом с друзьями, чтобы они могли присоединиться!</p>
+    
     <div class="card">
         <h2>Игроки:</h2>
-        <p>
-            {% if players %}
-                {{ players|join(', ') }}
-            {% else %}
-                Пока никого нет...
-            {% endif %}
-        </p>
-        <p>(В будущем здесь будет полноценное игровое поле)</p>
+        <!-- Создаем список, который будем обновлять через JavaScript -->
+        <ul id="players-list">
+            <li>Ожидание подключения...</li>
+        </ul>
     </div>
+
+    <!-- Подключаем клиентскую библиотеку Socket.IO -->
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <!-- Подключаем наш собственный скрипт -->
+    <script src="{{ url_for('static', filename='js/game.js') }}"></script>
 {% endblock %}
