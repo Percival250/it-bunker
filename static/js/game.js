@@ -147,6 +147,33 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
         }
     });
+    socket.on('you_are_host', (data) => {
+        if (data.is_host) {
+            console.log("Этот клиент - хост. Кнопки управления активны.");
+            // Кнопки и так активны по умолчанию, ничего не меняем
+            moduleSelect.disabled = false;
+            startGameBtn.disabled = false;
+        } else {
+            console.log("Этот клиент - гость. Кнопки управления заблокированы.");
+            // Если мы не хост, блокируем кнопки
+            moduleSelect.disabled = true;
+            startGameBtn.disabled = true;
+        }
+    });
+    
+    socket.on('available_modules', (data) => {
+        console.log("Получены доступные модули:", data.modules);
+        moduleSelect.innerHTML = '';
+        data.modules.forEach(module => {
+            const option = document.createElement('option');
+            option.value = module;
+            option.textContent = module;
+            moduleSelect.appendChild(option);
+        });
+        // Убираем разблокировку отсюда, теперь это контролирует событие 'you_are_host'
+        // moduleSelect.disabled = false; 
+        // startGameBtn.disabled = false;
+    });
 });
 
 // --- 4. Служебные события ---

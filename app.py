@@ -55,8 +55,8 @@ def index():
 @app.route('/create_room', methods=['POST'])
 def create_room():
     room_code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=5))
-    # ИСПРАВЛЕНИЕ: Инициализируем players как пустой СЛОВАРЬ
-    rooms[room_code] = {'players': {}}
+    # ВАЖНО: Пока мы не знаем sid хоста. Мы назначим его, когда хост подключится через WebSocket.
+    rooms[room_code] = {'host_sid': None, 'players': {}}
     return redirect(url_for('game_room_page', room_code=room_code))
 
 @app.route('/join_room', methods=['POST'])
@@ -139,13 +139,22 @@ def on_join(data):
     room_code = data['room_code']
     sid = request.sid
     
-    # Добавляем связь игрок -> комната
     player_to_room[sid] = room_code
     
     if room_code not in rooms:
-        print(f"Ошибка: Игрок {username} попытался присоединиться к несуществующей комнате {room_code}")
         return
     
+    # --- ЛОГИКА НАЗНАЧЕНИЯ ХОСТА ---
+    # Если хост еще не назначен (это первый игрок в комнате), делаем его хостом.
+    if rooms[room_code]['host_sid'] is None:
+        rooms[room_code]['host_sid'] = sid
+        print(f"Игрок {username} (sid: {sid}) назначен хостом комнаты {room_code}")
+        # Отправляем ЛИЧНО ему сообщение, что он хост
+        emit('you_are_host', {'is_host': True}, to=sid)
+    else:
+        # Всем остальным сообщаем, что они не хосты
+        emit('you_are_host', {'is_host': False}, to=sid)
+
     join_room(room_code)
     
     rooms[room_code]['players'][sid] = username
@@ -179,8 +188,9 @@ def on_disconnect():
 def on_start_game(data):
     room_code = data['room_code']
     selected_module = data['module']
+    sid = request.sid
     
-    if room_code in rooms:
+    if room_code in rooms and rooms[room_code]['host_sid'] == sid:
         if rooms[room_code].get('game_started', False):
             return
         rooms[room_code]['game_started'] = True
@@ -212,9 +222,11 @@ def on_start_game(data):
                 
                 emit('deal_cards', {'cards': cards_to_send}, to=sid)
                 print(f"ИД игрока {sid} ({username}) розданы карты.")
+                
+        emit('game_started', {'message': f"Игра началась! Модуль: {data['module']}. Карты розданы."}, to=room_code)
 
-        emit('game_started', {'message': f"Игра началась! Модуль: {selected_module}. Карты розданы."}, to=room_code)
-
+    else:
+        print(f"Попытка начать игру не от хоста в комнате {room_code} от sid {sid}")
 # НОВЫЙ ОБРАБОТЧИК ДЛЯ РАСКРЫТИЯ КАРТЫ
 @socketio.on('reveal_card')
 def on_reveal_card(data):
