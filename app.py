@@ -121,6 +121,8 @@ def add_test_data():
         db.session.rollback() # Откатываем изменения в случае ошибки
         return f"Произошла ошибка: {e}"
 
+player_to_room = {}
+
 # --- ОБРАБОТЧИКИ СОБЫТИЙ (SOCKET.IO) ---
 
 @socketio.on('connect')
@@ -137,14 +139,15 @@ def on_join(data):
     room_code = data['room_code']
     sid = request.sid
     
-    # ДОБАВЛЯЕМ ПРОВЕРКУ: если комнаты нет, ничего не делаем
+    # Добавляем связь игрок -> комната
+    player_to_room[sid] = room_code
+    
     if room_code not in rooms:
         print(f"Ошибка: Игрок {username} попытался присоединиться к несуществующей комнате {room_code}")
-        return # Просто выходим из функции
+        return
     
     join_room(room_code)
     
-    # Этот код теперь будет выполняться только для существующих комнат
     rooms[room_code]['players'][sid] = username
     
     print(f"Игрок {username} (sid: {sid}) присоединился к {room_code}")
@@ -155,18 +158,19 @@ def on_join(data):
 @socketio.on('disconnect')
 def on_disconnect():
     sid = request.sid
-    # Находим комнату, в которой был игрок, и удаляем его
+    # Удаляем связь игрок -> комната
+    if sid in player_to_room:
+        player_to_room.pop(sid)
+        
     for room_code, room_data in list(rooms.items()):
         if sid in room_data.get('players', {}):
             username = room_data['players'].pop(sid)
             print(f"Игрок {username} (sid: {sid}) отключился от {room_code}")
             
-            # Если в комнате не осталось игроков, можно ее удалить
             if not room_data['players']:
                 rooms.pop(room_code)
                 print(f"Комната {room_code} пуста и удалена.")
             else:
-                # Иначе отправляем всем обновленный список игроков
                 player_names = list(room_data['players'].values())
                 emit('player_update', {'players': player_names}, to=room_code)
             break
@@ -181,7 +185,6 @@ def on_start_game(data):
             return
         rooms[room_code]['game_started'] = True
 
-        # ТЕПЕРЬ ЭТО ГАРАНТИРОВАННО СЛОВАРЬ
         players_in_room = rooms[room_code]['players']
         
         with app.app_context():
@@ -195,7 +198,6 @@ def on_start_game(data):
             for category in cards_by_category:
                 random.shuffle(cards_by_category[category])
 
-            # ЭТОТ КОД ТЕПЕРЬ БУДЕТ РАБОТАТЬ ПРАВИЛЬНО
             for sid, username in players_in_room.items():
                 player_hand = []
                 for category, cards in cards_by_category.items():
@@ -212,3 +214,22 @@ def on_start_game(data):
                 print(f"ИД игрока {sid} ({username}) розданы карты.")
 
         emit('game_started', {'message': f"Игра началась! Модуль: {selected_module}. Карты розданы."}, to=room_code)
+
+# НОВЫЙ ОБРАБОТЧИК ДЛЯ РАСКРЫТИЯ КАРТЫ
+@socketio.on('reveal_card')
+def on_reveal_card(data):
+    sid = request.sid
+    if sid in player_to_room:
+        room_code = player_to_room[sid]
+        
+        if room_code in rooms and sid in rooms[room_code]['players']:
+            username = rooms[room_code]['players'][sid]
+            card_data = data['card']
+            
+            print(f"Игрок {username} в комнате {room_code} раскрыл карту: {card_data['title']}")
+            
+            # Отправляем всем в комнате информацию о раскрытой карте
+            emit('new_card_revealed', {
+                'username': username,
+                'card': card_data
+            }, to=room_code)

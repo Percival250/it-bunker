@@ -4,12 +4,19 @@
     <h1>Игровая комната: <span id="room-code">{{ room_code }}</span></h1>
     
     <div class="card">
-        <!-- НОВЫЙ БЛОК ДЛЯ НАЧАЛА ИГРЫ -->
         <h2>Настройки игры</h2>
         <select id="module-select" disabled>
             <option>Загрузка модулей...</option>
         </select>
         <button id="start-game-btn" disabled>Начать игру</button>
+    </div>
+
+    <!-- НОВЫЙ БЛОК "ОБЩИЙ СТОЛ" -->
+    <div class="card">
+        <h2>Общий стол:</h2>
+        <div id="revealed-cards-area">
+            <p>Здесь будут появляться раскрытые карты игроков...</p>
+        </div>
     </div>
 
     <div class="card">
@@ -19,7 +26,6 @@
         </ul>
     </div>
 
-    <!-- НОВЫЙ БЛОК ДЛЯ ОТОБРАЖЕНИЯ ВАШИХ КАРТ -->
     <div class="card">
         <h2>Мои карты:</h2>
         <div id="my-cards">
@@ -27,7 +33,7 @@
         </div>
     </div>
 
-    <!-- Скрипты подключаем как и раньше -->
+    <!-- Скрипты -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.js"></script>
     <script src="{{ url_for('static', filename='js/game.js') }}"></script>
 {% endblock %}
