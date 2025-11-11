@@ -55,7 +55,8 @@ def index():
 @app.route('/create_room', methods=['POST'])
 def create_room():
     room_code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=5))
-    rooms[room_code] = {'players': []} # Создаем комнату во временном хранилище
+    # ИСПРАВЛЕНИЕ: Инициализируем players как пустой СЛОВАРЬ
+    rooms[room_code] = {'players': {}}
     return redirect(url_for('game_room_page', room_code=room_code))
 
 @app.route('/join_room', methods=['POST'])
@@ -134,20 +135,20 @@ def on_connect():
 def on_join(data):
     username = data.get('username', 'Аноним')
     room_code = data['room_code']
-    sid = request.sid  # Получаем уникальный ID сессии игрока
+    sid = request.sid
+    
+    # ДОБАВЛЯЕМ ПРОВЕРКУ: если комнаты нет, ничего не делаем
+    if room_code not in rooms:
+        print(f"Ошибка: Игрок {username} попытался присоединиться к несуществующей комнате {room_code}")
+        return # Просто выходим из функции
     
     join_room(room_code)
     
-    # Создаем комнату, если ее нет
-    if room_code not in rooms:
-        rooms[room_code] = {'players': {}}
-    
-    # ПРАВИЛЬНО: Добавляем игрока в СЛОВАРЬ
+    # Этот код теперь будет выполняться только для существующих комнат
     rooms[room_code]['players'][sid] = username
     
     print(f"Игрок {username} (sid: {sid}) присоединился к {room_code}")
     
-    # Отправляем обновленный список ИМЕН игроков
     player_names = list(rooms[room_code]['players'].values())
     emit('player_update', {'players': player_names}, to=room_code)
 
