@@ -5,58 +5,43 @@ const socket = io();
 const roomCodeElement = document.getElementById('room-code');
 const moduleSelect = document.getElementById('module-select');
 const startGameBtn = document.getElementById('start-game-btn');
-const playersList = document.getElementById('players-list');
+const playersListDiv = document.getElementById('players-list'); // Теперь это div, а не ul
 const myCardsDiv = document.getElementById('my-cards');
-const revealedCardsArea = document.getElementById('revealed-cards-area'); // Новый элемент
+const revealedCardsArea = document.getElementById('revealed-cards-area');
 
-// Получаем код комнаты со страницы
 const roomCode = roomCodeElement ? roomCodeElement.innerText : null;
-
-// Запрашиваем имя пользователя ОДИН РАЗ при загрузке
 const username = prompt("Введите ваше имя:");
 
-// --- 2. Отправляем события НА СЕРВЕР ---
+// --- 2. Отправка событий НА СЕРВЕР ---
 
-// Отправляем 'join' при подключении
 document.addEventListener('DOMContentLoaded', () => {
     if (username && roomCode) {
-        console.log(`Отправляем 'join'. Имя: ${username}, Комната: ${roomCode}`);
         socket.emit('join', { username: username, room_code: roomCode });
-    } else {
-        console.error("Не удалось получить имя пользователя или код комнаты.");
     }
 });
 
-// Отправляем 'start_game' по клику на кнопку
 startGameBtn.addEventListener('click', () => {
     const selectedModule = moduleSelect.value;
-    if (selectedModule) {
-        console.log(`Начинаем игру с модулем: ${selectedModule}`);
-        socket.emit('start_game', { room_code: roomCode, module: selectedModule });
-    }
+    socket.emit('start_game', { room_code: roomCode, module: selectedModule });
 });
 
-// НОВЫЙ ОБРАБОТЧИК: Отправляем 'reveal_card' по клику на карту
 myCardsDiv.addEventListener('click', (event) => {
     const cardElement = event.target.closest('.card-item');
-    if (cardElement) {
+    if (cardElement && !cardElement.classList.contains('disabled')) {
         const cardData = {
             category: cardElement.dataset.category,
             title: cardElement.dataset.title,
             description: cardElement.dataset.description
         };
-        console.log("Отправляем 'reveal_card' на сервер:", cardData);
         socket.emit('reveal_card', { card: cardData });
+        cardElement.classList.add('disabled'); // Используем класс вместо стилей
         cardElement.style.opacity = '0.5';
-        cardElement.style.pointerEvents = 'none';
     }
 });
 
-// --- 3. Слушаем события от СЕРВЕРА ---
+// --- 3. Слушаем события от СЕРВЕРА и ОБНОВЛЯЕМ ИНТЕРФЕЙС ---
 
-// Событие: Сервер прислал список доступных модулей
 socket.on('available_modules', (data) => {
-    console.log("Получены доступные модули:", data.modules);
     moduleSelect.innerHTML = '';
     data.modules.forEach(module => {
         const option = document.createElement('option');
@@ -68,20 +53,43 @@ socket.on('available_modules', (data) => {
     startGameBtn.disabled = false;
 });
 
-// Событие: Сервер прислал обновленный список игроков
+// ГЛАВНОЕ ИЗМЕНЕНИЕ: Теперь это событие управляет отображением всех игроков
 socket.on('player_update', (data) => {
-    console.log("Получен обновленный список игроков:", data.players);
-    playersList.innerHTML = '';
-    data.players.forEach(player => {
-        const li = document.createElement('li');
-        li.textContent = player;
-        playersList.appendChild(li);
+    console.log("Обновление игроков:", data.players);
+    const players = data.players;
+
+    // Обновляем простой список имен
+    playersListDiv.innerHTML = '';
+    players.forEach(player => {
+        playersListDiv.innerHTML += `<span>${player}</span> `;
     });
+
+    // Очищаем старые столы, чтобы удалить отключившихся игроков
+    revealedCardsArea.innerHTML = ''; 
+    if (players.length > 0) {
+        // И создаем новые столы для всех текущих игроков
+        players.forEach(player => {
+            // Создаем уникальный ID для стола игрока
+            const playerBoardID = `board-for-${player.replace(/\s+/g, '-')}`;
+            
+            const playerBoard = document.createElement('div');
+            playerBoard.classList.add('player-board');
+            playerBoard.id = playerBoardID;
+            
+            playerBoard.innerHTML = `
+                <h3>${player}</h3>
+                <div class="cards-on-board">
+                    <p>Карты не раскрыты</p>
+                </div>
+            `;
+            revealedCardsArea.appendChild(playerBoard);
+        });
+    } else {
+        revealedCardsArea.innerHTML = '<p>Ожидание игроков...</p>';
+    }
 });
 
-// Событие: Сервер прислал ЛИЧНО нам наши карты
 socket.on('deal_cards', (data) => {
-    console.log("Получены личные карты:", data.cards);
     myCardsDiv.innerHTML = '';
     data.cards.forEach(card => {
         myCardsDiv.innerHTML += `
@@ -89,44 +97,45 @@ socket.on('deal_cards', (data) => {
                  data-category="${card.category}" 
                  data-title="${card.title}" 
                  data-description="${card.description || ''}"
-                 style="border: 1px solid #ccc; padding: 10px; margin-top: 10px; border-radius: 5px; cursor: pointer;">
+                 style="/* ... стили ... */ cursor: pointer;">
                 <strong>${card.category}: ${card.title}</strong>
-                <p style="margin-top: 5px; margin-bottom: 0;">${card.description || ''}</p>
+                <p>${card.description || ''}</p>
             </div>
         `;
     });
 });
 
-// Событие: Сервер сообщил, что игра началась
 socket.on('game_started', (data) => {
-    console.log("Сервер сообщил о начале игры:", data.message);
     startGameBtn.disabled = true;
     moduleSelect.disabled = true;
-    if (myCardsDiv.innerHTML.includes("Игра еще не началась")) {
-        myCardsDiv.innerHTML = `<p>${data.message}</p>`;
-    }
 });
 
-// НОВОЕ СОБЫТИЕ: Сервер сообщил, что кто-то раскрыл карту
+// ГЛАВНОЕ ИЗМЕНЕНИЕ: Теперь это событие добавляет карту на стол конкретного игрока
 socket.on('new_card_revealed', (data) => {
     console.log(`Игрок ${data.username} раскрыл карту:`, data.card);
-    if (revealedCardsArea.innerText.includes('Здесь будут появляться')) {
-        revealedCardsArea.innerHTML = '';
+
+    // Находим ID стола нужного игрока
+    const playerBoardID = `board-for-${data.username.replace(/\s+/g, '-')}`;
+    const playerBoard = document.getElementById(playerBoardID);
+
+    if (playerBoard) {
+        const cardsOnBoardDiv = playerBoard.querySelector('.cards-on-board');
+        // Если это первая карта, очищаем "Карты не раскрыты"
+        if (cardsOnBoardDiv.innerText.includes('Карты не раскрыты')) {
+            cardsOnBoardDiv.innerHTML = '';
+        }
+
+        // Добавляем новую раскрытую карту
+        cardsOnBoardDiv.innerHTML += `
+            <div class="revealed-card" style="border: 1px solid #007bff; padding: 5px; margin-top: 5px; border-radius: 4px;">
+                <p style="margin: 0;"><strong>${data.card.category}: ${data.card.title}</strong></p>
+            </div>
+        `;
     }
-    revealedCardsArea.innerHTML += `
-        <div class="revealed-card" style="border: 2px solid #007bff; padding: 10px; margin-top: 10px; border-radius: 5px;">
-            <p style="margin: 0 0 5px 0;"><strong>${data.username}</strong> раскрывает:</p>
-            <p style="margin: 0;"><strong>${data.card.category}: ${data.card.title}</strong></p>
-            <p style="margin: 5px 0 0 0;">${data.card.description || ''}</p>
-        </div>
-    `;
 });
 
-// --- 4. Служебные события для отладки ---
+
+// --- 4. Служебные события ---
 socket.on('connect', () => {
-    console.log('Успешно подключено к серверу! ID сокета:', socket.id);
-});
-
-socket.on('disconnect', () => {
-    console.warn('Отключено от сервера.');
+    console.log('Успешно подключено к серверу!');
 });
