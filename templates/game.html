@@ -1,19 +1,33 @@
+<!-- templates/game.html -->
 {% extends 'base.html' %}
 {% block content %}
-    <!-- Мы используем h1 для вывода кода, а скрытый span - для доступа из JS -->
     <h1>Игровая комната: <span id="room-code">{{ room_code }}</span></h1>
-    <p>Поделитесь этим кодом с друзьями, чтобы они могли присоединиться!</p>
     
     <div class="card">
+        <!-- НОВЫЙ БЛОК ДЛЯ НАЧАЛА ИГРЫ -->
+        <h2>Настройки игры</h2>
+        <select id="module-select" disabled>
+            <option>Загрузка модулей...</option>
+        </select>
+        <button id="start-game-btn" disabled>Начать игру</button>
+    </div>
+
+    <div class="card">
         <h2>Игроки:</h2>
-        <!-- Создаем список, который будем обновлять через JavaScript -->
         <ul id="players-list">
             <li>Ожидание подключения...</li>
         </ul>
     </div>
 
-    <!-- Подключаем клиентскую библиотеку Socket.IO -->
-    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-    <!-- Подключаем наш собственный скрипт -->
+    <!-- НОВЫЙ БЛОК ДЛЯ ОТОБРАЖЕНИЯ ВАШИХ КАРТ -->
+    <div class="card">
+        <h2>Мои карты:</h2>
+        <div id="my-cards">
+            <p>Игра еще не началась...</p>
+        </div>
+    </div>
+
+    <!-- Скрипты подключаем как и раньше -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.js"></script>
     <script src="{{ url_for('static', filename='js/game.js') }}"></script>
 {% endblock %}

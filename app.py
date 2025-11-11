@@ -33,6 +33,7 @@ socketio = SocketIO(app)
 # --- МОДЕЛИ ДАННЫХ (остаются без изменений) ---
 class Card(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    module = db.Column(db.String(50), nullable=False, default='base') # <-- ДОБАВЛЯЕМ ЭТУ СТРОКУ
     category = db.Column(db.String(50), nullable=False)
     title = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text, nullable=True)
@@ -69,8 +70,44 @@ def game_room_page(room_code):
     # Эта страница теперь просто отображает HTML-шаблон
     return render_template('game.html', room_code=room_code)
 
+@app.route('/add_test_data')
+def add_test_data():
+    try:
+        with app.app_context():
+            db.create_all() # Эта команда теперь также добавит новое поле 'module' в таблицу
+
+            # Добавляем карточки для БАЗОВОГО модуля
+            if not Card.query.filter_by(title='Backend-разработчик').first():
+                cards_base = [
+                    Card(module='Базовый IT', category='Профессия', title='Backend-разработчик', description='Пишет логику на стороне сервера.'),
+                    Card(module='Базовый IT', category='Хобби', title='Собирает механические клавиатуры', description='Тратит много денег на кейкапы.')
+                ]
+                db.session.add_all(cards_base)
+
+            # Добавляем карточки для нового, Gamedev модуля
+            if not Card.query.filter_by(title='Unity разработчик').first():
+                cards_gamedev = [
+                    Card(module='GameDev', category='Профессия', title='Unity разработчик', description='Знает все о префабах.'),
+                    Card(module='GameDev', category='Хобби', title='Создает моды для Skyrim', description='"Это не баг, а фича!"')
+                ]
+                db.session.add_all(cards_gamedev)
+            
+            db.session.commit()
+            return "Тестовые данные для модулей 'Базовый IT' и 'GameDev' успешно добавлены/обновлены!"
+    except Exception as e:
+        return f"Произошла ошибка: {e}"
 
 # --- ОБРАБОТЧИКИ СОБЫТИЙ (SOCKET.IO) ---
+
+@socketio.on('connect')
+def on_connect():
+    # Когда игрок подключается, отправим ему список доступных модулей
+    with app.app_context():
+        # Находим все уникальные названия модулей в базе
+        modules = db.session.query(Card.module).distinct().all()
+        # Преобразуем результат в простой список строк
+        module_names = [m[0] for m in modules]
+        emit('available_modules', {'modules': module_names})
 
 # Этот обработчик срабатывает, когда игрок открывает страницу игры
 @socketio.on('join')
@@ -91,7 +128,50 @@ def on_join(data):
     emit('player_joined', {'username': username, 'players': rooms[room_code]['players']}, to=room_code)
     print(f"Игрок {username} присоединился к комнате {room_code}")
 
+@socketio.on('start_game')
+def on_start_game(data):
+    room_code = data['room_code']
+    selected_module = data['module']
+    
+    if room_code in rooms:
+        players_in_room = rooms[room_code]['players']
+        
+        with app.app_context():
+            # Вытаскиваем ВСЕ карты из выбранного модуля
+            all_cards_in_module = Card.query.filter_by(module=selected_module).all()
 
+            for player in players_in_room:
+                # --- ЗДЕСЬ ЛОГИКА РАЗДАЧИ КАРТ ---
+                # Для примера, раздадим каждому по 1 случайной профессии
+                
+                # Фильтруем карты профессий
+                professions = [c for c in all_cards_in_module if c.category == 'Профессия']
+                
+                # Выбираем одну случайную профессию
+                if professions:
+                    card_to_deal = random.choice(professions)
+                    
+                    # Формируем данные для отправки
+                    card_data = {
+                        'title': card_to_deal.title,
+                        'description': card_to_deal.description,
+                        'category': card_to_deal.category
+                    }
+                    # Отправляем карту ЛИЧНО этому игроку
+                    # Для этого нам нужен его sid (уникальный ID сессии),
+                    # но пока для простоты будем отправлять всем одинаковую карту для демонстрации.
+                    # В будущем мы это усложним.
+                    
+                    # Отправляем событие ВСЕМ в комнате с информацией, кто какую карту получил
+                    # (в реальной игре так делать нельзя, но для теста сойдет)
+                    emit('game_update', {'message': f'Игроку {player} раздали карту: {card_data["title"]}'}, to=room_code)
+                    
+                    # Отправляем личное событие с картой (ЭТО ПРАВИЛЬНЫЙ СПОСОБ)
+                    # Чтобы это работало, нам нужно хранить sid игроков. Пока пропустим.
+                    # emit('deal_card', card_data, to=player_sid)
+
+        print(f"Игра в комнате {room_code} началась с модулем '{selected_module}'!")
+        
 # --- ЗАПУСК ПРИЛОЖЕНИЯ ---
 if __name__ == '__main__':
     # Теперь мы запускаем приложение через socketio.run(), а не app.run()
