@@ -8,9 +8,12 @@ import os
 import random
 import string
 from dotenv import load_dotenv
+from whitenoise import WhiteNoise
 
 load_dotenv()
 app = Flask(__name__)
+
+app.wsgi_app = WhiteNoise(app.wsgi_app, root='static/')
 # Добавляем секретный ключ, он важен для работы сессий и SocketIO
 app.config['SECRET_KEY'] = 'Nauka2.0' # Можете вписать сюда любую фразу
 
