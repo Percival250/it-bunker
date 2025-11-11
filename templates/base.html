@@ -1,14 +1,21 @@
-<!-- templates/base.html -->
+<!DOCTYPE html>
+<html lang="ru">
 <head>
-    ...
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IT Bunker Game</title>
+    
+    <!-- Подключаем внешний файл стилей -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <!-- ДОБАВЬТЕ ЭТИ СТИЛИ -->
+    
+    <!-- Встроенные стили для динамических элементов -->
     <style>
+        /* Стили для досок игроков, как и договаривались */
         #revealed-cards-area {
             display: flex;
             flex-wrap: wrap;
             gap: 15px;
+            align-items: flex-start;
         }
         .player-board {
             flex: 1;
@@ -21,9 +28,24 @@
         .player-board h3 {
             margin-top: 0;
             text-align: center;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 5px;
         }
         .revealed-card {
             background-color: #fff;
         }
+        .card-item.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
     </style>
 </head>
+<body>
+    <div class="container">
+        <!-- СЮДА FLASK БУДЕТ ВСТАВЛЯТЬ СОДЕРЖИМОЕ ДРУГИХ СТРАНИЦ -->
+        {% block content %}
+        {% endblock %}
+    </div>
+</body>
+</html>
