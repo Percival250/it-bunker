@@ -1,14 +1,16 @@
 import eventlet
 eventlet.monkey_patch()
 
+# 2. Теперь импортируем все остальное
 from flask import Flask, render_template, request, redirect, url_for
 from flask_socketio import SocketIO, join_room, leave_room, emit
 from flask_sqlalchemy import SQLAlchemy
+from dotenv import load_dotenv
+from whitenoise import WhiteNoise # WhiteNoise тоже должен быть после патча
 import os
 import random
 import string
-from dotenv import load_dotenv
-from whitenoise import WhiteNoise
+
 
 load_dotenv()
 app = Flask(__name__)
