@@ -58,20 +58,25 @@ socket.on('player_update', (data) => {
     console.log("Обновление игроков:", data.players);
     const players = data.players;
 
-    // Обновляем простой список имен
-    playersListDiv.innerHTML = '';
+    // --- Обновляем простой список имен в теге <ul> ---
+    playersList.innerHTML = ''; // playersList теперь это наш <ul>
     players.forEach(player => {
-        playersListDiv.innerHTML += `<span>${player}</span> `;
+        const li = document.createElement('li'); // Создаем элемент списка
+        li.textContent = player;
+        playersList.appendChild(li); // Добавляем в список
     });
 
-    // Очищаем старые столы, чтобы удалить отключившихся игроков
-    revealedCardsArea.innerHTML = ''; 
-    if (players.length > 0) {
-        // И создаем новые столы для всех текущих игроков
-        players.forEach(player => {
-            // Создаем уникальный ID для стола игрока
-            const playerBoardID = `board-for-${player.replace(/\s+/g, '-')}`;
-            
+    // --- Создаем и обновляем персональные столы игроков ---
+    
+    // Получаем текущие отображаемые доски
+    const existingBoards = new Set(Array.from(revealedCardsArea.querySelectorAll('.player-board')).map(board => board.id));
+    
+    // Добавляем новые доски
+    players.forEach(player => {
+        const playerBoardID = `board-for-${player.replace(/\s+/g, '-')}`;
+        
+        // Если доски для такого игрока еще нет, создаем ее
+        if (!document.getElementById(playerBoardID)) {
             const playerBoard = document.createElement('div');
             playerBoard.classList.add('player-board');
             playerBoard.id = playerBoardID;
@@ -82,12 +87,32 @@ socket.on('player_update', (data) => {
                     <p>Карты не раскрыты</p>
                 </div>
             `;
+            
+            // Если это первая доска, очищаем "Ожидание игроков"
+            if (revealedCardsArea.innerText.includes('Ожидание игроков')) {
+                revealedCardsArea.innerHTML = '';
+            }
             revealedCardsArea.appendChild(playerBoard);
-        });
-    } else {
+        }
+        
+        // Удаляем ID из набора, чтобы найти тех, кто отключился
+        existingBoards.delete(playerBoardID);
+    });
+
+    // Удаляем доски отключившихся игроков
+    existingBoards.forEach(boardIdToRemove => {
+        const boardToRemove = document.getElementById(boardIdToRemove);
+        if (boardToRemove) {
+            boardToRemove.remove();
+        }
+    });
+
+    // Если игроков не осталось, показываем сообщение
+    if (players.length === 0) {
         revealedCardsArea.innerHTML = '<p>Ожидание игроков...</p>';
     }
 });
+
 
 socket.on('deal_cards', (data) => {
     myCardsDiv.innerHTML = '';
