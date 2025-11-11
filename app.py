@@ -124,32 +124,51 @@ def add_test_data():
 
 @socketio.on('connect')
 def on_connect():
-    # Когда игрок подключается, отправим ему список доступных модулей
+    # Отправляем список доступных модулей при подключении
     with app.app_context():
-        # Находим все уникальные названия модулей в базе
         modules = db.session.query(Card.module).distinct().all()
-        # Преобразуем результат в простой список строк
-        module_names = [m[0] for m in modules]
+        module_names = [m[0] for m in modules if m[0] is not None]
         emit('available_modules', {'modules': module_names})
 
-# Этот обработчик срабатывает, когда игрок открывает страницу игры
 @socketio.on('join')
 def on_join(data):
-    # Получаем данные от клиента (из JavaScript)
     username = data.get('username', 'Аноним')
     room_code = data['room_code']
-
-    # Добавляем игрока в нашу "виртуальную комнату" на сервере
+    sid = request.sid  # Получаем уникальный ID сессии игрока
+    
     join_room(room_code)
     
-    # Добавляем игрока в наше временное хранилище
-    if room_code in rooms and username not in rooms[room_code]['players']:
-        rooms[room_code]['players'].append(username)
+    # Создаем комнату, если ее нет
+    if room_code not in rooms:
+        rooms[room_code] = {'players': {}}
+    
+    # ПРАВИЛЬНО: Добавляем игрока в СЛОВАРЬ
+    rooms[room_code]['players'][sid] = username
+    
+    print(f"Игрок {username} (sid: {sid}) присоединился к {room_code}")
+    
+    # Отправляем обновленный список ИМЕН игроков
+    player_names = list(rooms[room_code]['players'].values())
+    emit('player_update', {'players': player_names}, to=room_code)
 
-    # Отправляем ВСЕМ игрокам в этой комнате сообщение о том, что
-    # к ним присоединился новый игрок, и обновленный список всех игроков.
-    emit('player_joined', {'username': username, 'players': rooms[room_code]['players']}, to=room_code)
-    print(f"Игрок {username} присоединился к комнате {room_code}")
+@socketio.on('disconnect')
+def on_disconnect():
+    sid = request.sid
+    # Находим комнату, в которой был игрок, и удаляем его
+    for room_code, room_data in list(rooms.items()):
+        if sid in room_data.get('players', {}):
+            username = room_data['players'].pop(sid)
+            print(f"Игрок {username} (sid: {sid}) отключился от {room_code}")
+            
+            # Если в комнате не осталось игроков, можно ее удалить
+            if not room_data['players']:
+                rooms.pop(room_code)
+                print(f"Комната {room_code} пуста и удалена.")
+            else:
+                # Иначе отправляем всем обновленный список игроков
+                player_names = list(room_data['players'].values())
+                emit('player_update', {'players': player_names}, to=room_code)
+            break
 
 @socketio.on('start_game')
 def on_start_game(data):
@@ -157,47 +176,38 @@ def on_start_game(data):
     selected_module = data['module']
     
     if room_code in rooms:
-        # Блокируем повторное начало игры
         if rooms[room_code].get('game_started', False):
             return
         rooms[room_code]['game_started'] = True
 
-        players_in_room = rooms[room_code]['players'] # Словарь {sid: username}
+        # ТЕПЕРЬ ЭТО ГАРАНТИРОВАННО СЛОВАРЬ
+        players_in_room = rooms[room_code]['players']
         
         with app.app_context():
-            # 1. Вытаскиваем ВСЕ карты из выбранного модуля и группируем по категориям
             all_cards_in_module = Card.query.filter_by(module=selected_module).all()
-            
             cards_by_category = {}
             for card in all_cards_in_module:
                 if card.category not in cards_by_category:
                     cards_by_category[card.category] = []
                 cards_by_category[card.category].append(card)
 
-            # 2. Перемешиваем карты внутри каждой категории
             for category in cards_by_category:
                 random.shuffle(cards_by_category[category])
 
-            # 3. Раздаем карты игрокам
+            # ЭТОТ КОД ТЕПЕРЬ БУДЕТ РАБОТАТЬ ПРАВИЛЬНО
             for sid, username in players_in_room.items():
                 player_hand = []
-                
-                # Пробегаемся по всем категориям и выдаем по одной карте, если они есть
                 for category, cards in cards_by_category.items():
-                    if cards: # Проверяем, что карты в этой категории еще остались
-                        # Берем последнюю карту из перемешанного списка и удаляем ее,
-                        # чтобы она не досталась другому игроку
+                    if cards:
                         card_to_deal = cards.pop()
                         player_hand.append(card_to_deal)
 
-                # 4. Отправляем руку лично игроку
                 cards_to_send = [
                     {'title': c.title, 'description': c.description, 'category': c.category}
                     for c in player_hand
                 ]
                 
                 emit('deal_cards', {'cards': cards_to_send}, to=sid)
-                print(f"Игроку {username} (sid: {sid}) раздали {len(cards_to_send)} карт(ы)")
+                print(f"ИД игрока {sid} ({username}) розданы карты.")
 
-        # 5. Сообщаем всем в комнате, что игра началась
         emit('game_started', {'message': f"Игра началась! Модуль: {selected_module}. Карты розданы."}, to=room_code)
