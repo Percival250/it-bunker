@@ -1,3 +1,4 @@
+<!-- templates/base.html -->
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -5,45 +6,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IT Bunker Game</title>
     
-    <!-- Подключаем внешний файл стилей -->
+    <!-- Подключаем шрифты с Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Roboto+Mono&display=swap" rel="stylesheet">
+
+    <!-- Подключаем наш новый внешний файл стилей -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    
-    <!-- Встроенные стили для динамических элементов -->
-    <style>
-        /* Стили для досок игроков, как и договаривались */
-        #revealed-cards-area {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 15px;
-            align-items: flex-start;
-        }
-        .player-board {
-            flex: 1;
-            min-width: 250px;
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            padding: 10px;
-            background-color: #f9f9f9;
-        }
-        .player-board h3 {
-            margin-top: 0;
-            text-align: center;
-            border-bottom: 1px solid #ddd;
-            padding-bottom: 5px;
-        }
-        .revealed-card {
-            background-color: #fff;
-        }
-        .card-item.disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            pointer-events: none;
-        }
-    </style>
 </head>
 <body>
     <div class="container">
-        <!-- СЮДА FLASK БУДЕТ ВСТАВЛЯТЬ СОДЕРЖИМОЕ ДРУГИХ СТРАНИЦ -->
         {% block content %}
         {% endblock %}
     </div>

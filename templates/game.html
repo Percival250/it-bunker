@@ -1,39 +1,44 @@
 <!-- templates/game.html -->
 {% extends 'base.html' %}
 {% block content %}
-    <h1>Игровая комната: <span id="room-code">{{ room_code }}</span></h1>
+    <h1>Игровая комната: <span id="room-code" class="room-code-span">{{ room_code }}</span></h1>
     
-    <div class="card">
-        <h2>Настройки игры</h2>
-        <select id="module-select" disabled>
-            <option>Загрузка модулей...</option>
-        </select>
-        <button id="start-game-btn" disabled>Начать игру</button>
-    </div>
+    <!-- Обертка для CSS Grid -->
+    <div class="game-grid">
+        
+        <!-- Левая колонка (Сайдбар) -->
+        <div class="game-sidebar">
+            <div class="card">
+                <h2>Настройки игры</h2>
+                <select id="module-select" disabled>
+                    <option>Загрузка модулей...</option>
+                </select>
+                <button id="start-game-btn" disabled style="margin-top: 15px;">Начать игру</button>
+            </div>
 
-    <!-- Общий стол (контейнер для досок игроков) -->
-    <div class="card">
-        <h2>Общий стол:</h2>
-        <div id="revealed-cards-area">
-            <p>Ожидание игроков...</p>
+            <div class="card">
+                <h2>Игроки в комнате:</h2>
+                <ul id="players-list">
+                    <li>Ожидание подключения...</li>
+                </ul>
+            </div>
+
+            <div class="card">
+                <h2>Мои карты:</h2>
+                <div id="my-cards">
+                    <p>Игра еще не началась...</p>
+                </div>
+            </div>
         </div>
-    </div>
 
-    <!-- Список игроков (просто для информации) -->
-    <div class="card">
-        <h2>Игроки в комнате:</h2>
-        <!-- ИСПОЛЬЗУЕМ UL, КАК И ДОЛЖНО БЫТЬ ДЛЯ СПИСКА -->
-        <ul id="players-list">
-            <li>Ожидание подключения...</li>
-        </ul>
-    </div>
-
-    <!-- Карты текущего игрока -->
-    <div class="card">
-        <h2>Мои карты:</h2>
-        <div id="my-cards">
-            <p>Игра еще не началась...</p>
+        <!-- Правая колонка (Основное поле) -->
+        <div class="card">
+            <h2>Общий стол:</h2>
+            <div id="revealed-cards-area">
+                <p>Ожидание игроков...</p>
+            </div>
         </div>
+
     </div>
 
     <!-- Скрипты -->

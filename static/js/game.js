@@ -39,8 +39,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 description: cardElement.dataset.description
             };
             socket.emit('reveal_card', { card: cardData });
+            
+            // ИЗМЕНЕНИЕ: Используем класс вместо прямого стиля
             cardElement.classList.add('disabled');
-            cardElement.style.opacity = '0.5';
         }
     });
 

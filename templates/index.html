@@ -1,21 +1,23 @@
+<!-- templates/index.html -->
 {% extends 'base.html' %}
 {% block content %}
-    <h1>Добро пожаловать в IT Bunker!</h1>
-    <p>Цель: попасть в IT-команду мечты.</p>
+    <div style="max-width: 500px; margin: auto;">
+        <h1>Добро пожаловать в IT Bunker!</h1>
+        <p style="text-align: center;">Цель: попасть в IT-команду мечты. Выживут только лучшие.</p>
 
-    <div class="card">
-        <h2>Создать новую игру</h2>
-        <form action="/create_room" method="post">
-            <button type="submit">Создать комнату</button>
-        </form>
-    </div>
+        <div class="card">
+            <h2>Создать новую игру</h2>
+            <form action="{{ url_for('create_room') }}" method="post">
+                <button type="submit">Создать комнату</button>
+            </form>
+        </div>
 
-    <div class="card">
-        <h2>Присоединиться к игре</h2>
-        <!-- СТАЛО -->
-        <form action="{{ url_for('join_room_action') }}" method="post"> <!-- ИЗМЕНЕНИЕ ЗДЕСЬ -->
-            <input type="text" name="room_code" placeholder="Введите код комнаты" maxlength="5" required>
-            <button type="submit">Войти</button>
-        </form>
+        <div class="card">
+            <h2>Присоединиться к игре</h2>
+            <form action="{{ url_for('join_room_action') }}" method="post">
+                <input type="text" name="room_code" placeholder="КОД КОМНАТЫ" maxlength="5" required>
+                <button type="submit">Войти</button>
+            </form>
+        </div>
     </div>
 {% endblock %}
