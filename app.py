@@ -9,7 +9,7 @@ app = Flask(__name__)
 # Временное хранилище для комнат. Позже мы заменим это базой данных.
 rooms = {}
 
-db_uri = 'postgresql://postgres.wqrbncvoonxhnswdsrgq:88E015A96A3E318BDB6956801CF65DC897D0A88D@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres'
+db_uri = os.environ.get('DATABASE_URL')
 app.config['SQLALCHEMY_DATABASE_URI'] = db_uri
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
