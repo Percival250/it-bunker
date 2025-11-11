@@ -74,27 +74,50 @@ def game_room_page(room_code):
 def add_test_data():
     try:
         with app.app_context():
-            db.create_all() # Эта команда теперь также добавит новое поле 'module' в таблицу
+            # Эта команда создает таблицы или добавляет новые столбцы, если их нет
+            db.create_all()
 
-            # Добавляем карточки для БАЗОВОГО модуля
-            if not Card.query.filter_by(title='Backend-разработчик').first():
-                cards_base = [
-                    Card(module='Базовый IT', category='Профессия', title='Backend-разработчик', description='Пишет логику на стороне сервера.'),
-                    Card(module='Базовый IT', category='Хобби', title='Собирает механические клавиатуры', description='Тратит много денег на кейкапы.')
-                ]
-                db.session.add_all(cards_base)
-
-            # Добавляем карточки для нового, Gamedev модуля
-            if not Card.query.filter_by(title='Unity разработчик').first():
-                cards_gamedev = [
-                    Card(module='GameDev', category='Профессия', title='Unity разработчик', description='Знает все о префабах.'),
-                    Card(module='GameDev', category='Хобби', title='Создает моды для Skyrim', description='"Это не баг, а фича!"')
-                ]
-                db.session.add_all(cards_gamedev)
+            # --- Создаем новый "Тестовый" модуль ---
+            module_name = "Тестовый"
             
+            # Удаляем старые тестовые карты, чтобы избежать дубликатов при перезапуске
+            Card.query.filter_by(module=module_name).delete()
             db.session.commit()
-            return "Тестовые данные для модулей 'Базовый IT' и 'GameDev' успешно добавлены/обновлены!"
+
+            # Создаем по 2 экземпляра карт каждой категории
+            test_cards = [
+                # Профессии
+                Card(module=module_name, category='Профессия', title='Frontend-разработчик'),
+                Card(module=module_name, category='Профессия', title='Backend-разработчик'),
+                # Хобби
+                Card(module=module_name, category='Хобби', title='Играет в настолки'),
+                Card(module=module_name, category='Хобби', title='Смотрит аниме'),
+                # Здоровье
+                Card(module=module_name, category='Здоровье', title='Идеальное зрение'),
+                Card(module=module_name, category='Здоровье', title='Туннельный синдром'),
+                # Биология (Пол)
+                Card(module=module_name, category='Биология', title='Пол: Мужской'),
+                Card(module=module_name, category='Биология', title='Пол: Женский'),
+                # Биология (Возраст) - просто как еще один тип
+                Card(module=module_name, category='Возраст', title='Возраст: 25 лет'),
+                Card(module=module_name, category='Возраст', title='Возраст: 35 лет'),
+                # Факт
+                Card(module=module_name, category='Факт', title='Может выйти из Vim'),
+                Card(module=module_name, category='Факт', title='Отцентровал div с первого раза'),
+                # Багаж
+                Card(module=module_name, category='Багаж', title='Ноутбук MacBook Pro'),
+                Card(module=module_name, category='Багаж', title='Резиновая уточка для дебага'),
+                # Особое условие
+                Card(module=module_name, category='Особое условие', title='Может украсть чужой Багаж'),
+                Card(module=module_name, category='Особое условие', title='Может обменяться картой Здоровья')
+            ]
+            
+            db.session.add_all(test_cards)
+            db.session.commit()
+            
+            return f"Тестовый модуль '{module_name}' успешно создан/обновлен!"
     except Exception as e:
+        db.session.rollback() # Откатываем изменения в случае ошибки
         return f"Произошла ошибка: {e}"
 
 # --- ОБРАБОТЧИКИ СОБЫТИЙ (SOCKET.IO) ---
@@ -134,46 +157,47 @@ def on_start_game(data):
     selected_module = data['module']
     
     if room_code in rooms:
-        players_in_room = rooms[room_code]['players']
+        # Блокируем повторное начало игры
+        if rooms[room_code].get('game_started', False):
+            return
+        rooms[room_code]['game_started'] = True
+
+        players_in_room = rooms[room_code]['players'] # Словарь {sid: username}
         
         with app.app_context():
-            # Вытаскиваем ВСЕ карты из выбранного модуля
+            # 1. Вытаскиваем ВСЕ карты из выбранного модуля и группируем по категориям
             all_cards_in_module = Card.query.filter_by(module=selected_module).all()
+            
+            cards_by_category = {}
+            for card in all_cards_in_module:
+                if card.category not in cards_by_category:
+                    cards_by_category[card.category] = []
+                cards_by_category[card.category].append(card)
 
-            for player in players_in_room:
-                # --- ЗДЕСЬ ЛОГИКА РАЗДАЧИ КАРТ ---
-                # Для примера, раздадим каждому по 1 случайной профессии
-                
-                # Фильтруем карты профессий
-                professions = [c for c in all_cards_in_module if c.category == 'Профессия']
-                
-                # Выбираем одну случайную профессию
-                if professions:
-                    card_to_deal = random.choice(professions)
-                    
-                    # Формируем данные для отправки
-                    card_data = {
-                        'title': card_to_deal.title,
-                        'description': card_to_deal.description,
-                        'category': card_to_deal.category
-                    }
-                    # Отправляем карту ЛИЧНО этому игроку
-                    # Для этого нам нужен его sid (уникальный ID сессии),
-                    # но пока для простоты будем отправлять всем одинаковую карту для демонстрации.
-                    # В будущем мы это усложним.
-                    
-                    # Отправляем событие ВСЕМ в комнате с информацией, кто какую карту получил
-                    # (в реальной игре так делать нельзя, но для теста сойдет)
-                    emit('game_update', {'message': f'Игроку {player} раздали карту: {card_data["title"]}'}, to=room_code)
-                    
-                    # Отправляем личное событие с картой (ЭТО ПРАВИЛЬНЫЙ СПОСОБ)
-                    # Чтобы это работало, нам нужно хранить sid игроков. Пока пропустим.
-                    # emit('deal_card', card_data, to=player_sid)
+            # 2. Перемешиваем карты внутри каждой категории
+            for category in cards_by_category:
+                random.shuffle(cards_by_category[category])
 
-        print(f"Игра в комнате {room_code} началась с модулем '{selected_module}'!")
-        
-# --- ЗАПУСК ПРИЛОЖЕНИЯ ---
-if __name__ == '__main__':
-    # Теперь мы запускаем приложение через socketio.run(), а не app.run()
-    # allow_unsafe_werkzeug=True нужно для совместимости последней версии SocketIO
-    socketio.run(app, debug=True, allow_unsafe_werkzeug=True)
+            # 3. Раздаем карты игрокам
+            for sid, username in players_in_room.items():
+                player_hand = []
+                
+                # Пробегаемся по всем категориям и выдаем по одной карте, если они есть
+                for category, cards in cards_by_category.items():
+                    if cards: # Проверяем, что карты в этой категории еще остались
+                        # Берем последнюю карту из перемешанного списка и удаляем ее,
+                        # чтобы она не досталась другому игроку
+                        card_to_deal = cards.pop()
+                        player_hand.append(card_to_deal)
+
+                # 4. Отправляем руку лично игроку
+                cards_to_send = [
+                    {'title': c.title, 'description': c.description, 'category': c.category}
+                    for c in player_hand
+                ]
+                
+                emit('deal_cards', {'cards': cards_to_send}, to=sid)
+                print(f"Игроку {username} (sid: {sid}) раздали {len(cards_to_send)} карт(ы)")
+
+        # 5. Сообщаем всем в комнате, что игра началась
+        emit('game_started', {'message': f"Игра началась! Модуль: {selected_module}. Карты розданы."}, to=room_code)
