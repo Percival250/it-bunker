@@ -44,7 +44,10 @@ class Card(db.Model):
 # Временное хранилище для комнат и игроков, пока не перенесли в БД
 # Структура: {'КОД_КОМНАТЫ': {'players': ['Имя1', 'Имя2']}}
 rooms = {}
-
+player_to_room = {}
+hands = {}
+votes = {}
+voting_active = {}
 # --- ОБЫЧНЫЕ HTTP-МАРШРУТЫ (FLASK) ---
 
 @app.route('/')
@@ -121,7 +124,7 @@ def add_test_data():
         db.session.rollback() # Откатываем изменения в случае ошибки
         return f"Произошла ошибка: {e}"
 
-player_to_room = {}
+
 
 # --- ОБРАБОТЧИКИ СОБЫТИЙ (SOCKET.IO) ---
 
@@ -187,46 +190,53 @@ def on_disconnect():
 @socketio.on('start_game')
 def on_start_game(data):
     room_code = data['room_code']
-    selected_module = data['module']
     sid = request.sid
-    
+
     if room_code in rooms and rooms[room_code]['host_sid'] == sid:
         if rooms[room_code].get('game_started', False):
             return
+        
+        # Инициализируем новые поля состояния игры
         rooms[room_code]['game_started'] = True
+        rooms[room_code]['hands'] = {} # <-- Сохраняем руки игроков здесь
+        rooms[room_code]['votes'] = {}
+        rooms[room_code]['voting_active'] = False
 
         players_in_room = rooms[room_code]['players']
         
         with app.app_context():
-            all_cards_in_module = Card.query.filter_by(module=selected_module).all()
+            # ... (код для получения и перемешивания карт остается таким же) ...
+            all_cards_in_module = Card.query.filter_by(module=data['module']).all()
+            # ... (группировка и перемешивание) ...
             cards_by_category = {}
             for card in all_cards_in_module:
                 if card.category not in cards_by_category:
                     cards_by_category[card.category] = []
                 cards_by_category[card.category].append(card)
-
             for category in cards_by_category:
                 random.shuffle(cards_by_category[category])
 
-            for sid, username in players_in_room.items():
+            for player_sid, username in players_in_room.items():
                 player_hand = []
+                # ... (логика раздачи карт через pop() остается такой же) ...
                 for category, cards in cards_by_category.items():
-                    if cards:
-                        card_to_deal = cards.pop()
-                        player_hand.append(card_to_deal)
+                    if cards: player_hand.append(cards.pop())
 
-                cards_to_send = [
-                    {'title': c.title, 'description': c.description, 'category': c.category}
-                    for c in player_hand
-                ]
+                # Конвертируем карты в словари
+                cards_data = [{'title': c.title, 'description': c.description, 'category': c.category} for c in player_hand]
                 
-                emit('deal_cards', {'cards': cards_to_send}, to=sid)
-                print(f"ИД игрока {sid} ({username}) розданы карты.")
+                # ГЛАВНОЕ: Сохраняем руку игрока на сервере
+                rooms[room_code]['hands'][player_sid] = cards_data
                 
-        emit('game_started', {'message': f"Игра началась! Модуль: {data['module']}. Карты розданы."}, to=room_code)
+                # Отправляем карты лично игроку
+                emit('deal_cards', {'cards': cards_data}, to=player_sid)
+                print(f"Игроку {username} (sid: {player_sid}) розданы и сохранены карты.")
+
+        emit('game_started', {'message': f"Игра началась! Карты розданы."}, to=room_code)
 
     else:
         print(f"Попытка начать игру не от хоста в комнате {room_code} от sid {sid}")
+
 # НОВЫЙ ОБРАБОТЧИК ДЛЯ РАСКРЫТИЯ КАРТЫ
 @socketio.on('reveal_card')
 def on_reveal_card(data):
@@ -245,3 +255,90 @@ def on_reveal_card(data):
                 'username': username,
                 'card': card_data
             }, to=room_code)
+
+@socketio.on('start_voting')
+def on_start_voting():
+    sid = request.sid
+    if sid in player_to_room:
+        room_code = player_to_room[sid]
+        # Только хост может начать голосование
+        if room_code in rooms and rooms[room_code]['host_sid'] == sid:
+            rooms[room_code]['voting_active'] = True
+            rooms[room_code]['votes'] = {} # Очищаем старые голоса
+            
+            # Сообщаем всем, что голосование началось
+            emit('voting_started', {'players': rooms[room_code]['players']}, to=room_code)
+            print(f"В комнате {room_code} началось голосование.")
+
+@socketio.on('cast_vote')
+def on_cast_vote(data):
+    voter_sid = request.sid
+    voted_for_username = data['username']
+    
+    if voter_sid in player_to_room:
+        room_code = player_to_room[voter_sid]
+        
+        if rooms[room_code].get('voting_active', False):
+            # Находим sid того, за кого проголосовали
+            voted_for_sid = None
+            for sid, username in rooms[room_code]['players'].items():
+                if username == voted_for_username:
+                    voted_for_sid = sid
+                    break
+            
+            if voted_for_sid:
+                votes = rooms[room_code]['votes']
+                # Логика "включить/выключить" голос
+                if votes.get(voter_sid) == voted_for_sid:
+                    votes.pop(voter_sid) # Убираем голос, если нажал повторно
+                else:
+                    votes[voter_sid] = voted_for_sid # Засчитываем голос
+
+                # Отправляем всем обновленную информацию о голосах
+                emit('vote_update', {'votes': votes}, to=room_code)
+
+@socketio.on('end_voting')
+def on_end_voting():
+    sid = request.sid
+    if sid in player_to_room:
+        room_code = player_to_room[sid]
+        if room_code in rooms and rooms[room_code]['host_sid'] == sid:
+            rooms[room_code]['voting_active'] = False
+            
+            votes = rooms[room_code]['votes']
+            if not votes: # Если никто не голосовал
+                emit('voting_ended', {'kicked_player': None, 'message': 'Никто не был исключен.'}, to=room_code)
+                return
+
+            # Считаем голоса
+            vote_counts = {}
+            for voted_for_sid in votes.values():
+                vote_counts[voted_for_sid] = vote_counts.get(voted_for_sid, 0) + 1
+            
+            # Находим, за кого больше всего голосов
+            max_votes = max(vote_counts.values())
+            kicked_sids = [sid for sid, count in vote_counts.items() if count == max_votes]
+            
+            # Если ничья, никого не исключаем (можно усложнить позже)
+            if len(kicked_sids) != 1:
+                emit('voting_ended', {'kicked_player': None, 'message': 'Ничья! Никто не был исключен.'}, to=room_code)
+                return
+
+            kicked_sid = kicked_sids[0]
+            kicked_player_username = rooms[room_code]['players'][kicked_sid]
+            kicked_player_hand = rooms[room_code]['hands'].get(kicked_sid, [])
+            
+            # Удаляем игрока
+            rooms[room_code]['players'].pop(kicked_sid)
+            rooms[room_code]['hands'].pop(kicked_sid, None)
+            
+            # Отправляем всем результат
+            emit('voting_ended', {
+                'kicked_player': kicked_player_username,
+                'revealed_cards': kicked_player_hand
+            }, to=room_code)
+            
+            # Обновляем список игроков
+            player_names = list(rooms[room_code]['players'].values())
+            emit('player_update', {'players': player_names}, to=room_code)
+            print(f"В комнате {room_code} исключен игрок {kicked_player_username}.")
