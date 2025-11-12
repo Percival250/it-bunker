@@ -59,7 +59,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // Сервер сообщает нам, являемся ли мы хостом
     socket.on('you_are_host', (data) => {
         isHost = data.is_host;
-        if (!isHost) {
+        if (isHost) {
+            console.log("Этот клиент - хост. Включаем управление.");
+            // ГЛАВНОЕ: Включаем кнопки ЗДЕСЬ, как только узнали, что мы хост
+            moduleSelect.disabled = false;
+            startGameBtn.disabled = false;
+        } else {
+            console.log("Этот клиент - гость. Блокируем управление.");
             moduleSelect.disabled = true;
             startGameBtn.disabled = true;
         }
@@ -67,6 +73,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Сервер присылает список модулей
     socket.on('available_modules', (data) => {
+        console.log("Получены доступные модули:", data.modules);
         moduleSelect.innerHTML = '';
         data.modules.forEach(module => {
             const option = document.createElement('option');
@@ -74,10 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
             option.textContent = module;
             moduleSelect.appendChild(option);
         });
-        if (isHost) {
-            moduleSelect.disabled = false;
-            startGameBtn.disabled = false;
-        }
+        // УБИРАЕМ ВСЮ ЛОГИКУ ПРО disabled ОТСЮДА
     });
 
     // Сервер присылает обновленный список игроков
