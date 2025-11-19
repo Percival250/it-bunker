@@ -181,10 +181,11 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.player-board').forEach(board => {
             board.style.cursor = 'pointer';
             board.onclick = () => {
-                const usernameToVoteFor = board.querySelector('h3').innerText;
-                if (usernameToVoteFor !== username) { // Нельзя голосовать за себя
+                // ИЗМЕНЕНИЕ ЗДЕСЬ: Берем "чистое" имя из data-атрибута
+                const usernameToVoteFor = board.querySelector('h3').dataset.username;
+                if (usernameToVoteFor !== username) {
                     socket.emit('cast_vote', { 'username': usernameToVoteFor });
-                    // Подсвечиваем свой выбор
+                    // Подсветка своего выбора
                     document.querySelectorAll('.player-board').forEach(b => b.style.border = '1px solid var(--border-color)');
                     board.style.border = '2px solid var(--primary-color)';
                 }
