@@ -143,24 +143,41 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     socket.on('deal_cards', (data) => {
-        // ... (этот код у вас правильный, оставляем без изменений)
         myCardsDiv.innerHTML = '';
         data.cards.forEach(card => {
-            myCardsDiv.innerHTML += `<div class="card-item" data-category="${card.category}" data-title="${card.title}" data-description="${card.description || ''}"><strong>${card.category}: ${card.title}</strong><p>${card.description || ''}</p></div>`;
+            // Сохраняем description в data-атрибут и отображаем его в <p>
+            const descriptionHTML = card.description ? `<p>${card.description}</p>` : '';
+            
+            myCardsDiv.innerHTML += `
+                <div class="card-item" 
+                     data-category="${card.category}" 
+                     data-title="${card.title}" 
+                     data-description="${card.description || ''}">
+                    <strong>${card.category}: ${card.title}</strong>
+                    ${descriptionHTML}
+                </div>`;
         });
     });
 
     socket.on('new_card_revealed', (data) => {
-        // ... (этот код у вас правильный, оставляем без изменений)
         const playerBoardID = `board-for-${data.username.replace(/\s+/g, '-')}`;
         const playerBoard = document.getElementById(playerBoardID);
         if (playerBoard) {
             const cardsOnBoardDiv = playerBoard.querySelector('.cards-on-board');
-            if (cardsOnBoardDiv.innerText.includes('Карты не раскрыты')) cardsOnBoardDiv.innerHTML = '';
-            cardsOnBoardDiv.innerHTML += `<div class="revealed-card"><p><strong>${data.card.category}: ${data.card.title}</strong></p></div>`;
+            if (cardsOnBoardDiv.innerText.includes('Карты не раскрыты')) {
+                cardsOnBoardDiv.innerHTML = '';
+            }
+            
+            // Точно так же добавляем проверку и вывод description
+            const descriptionHTML = data.card.description ? `<p><small>${data.card.description}</small></p>` : '';
+    
+            cardsOnBoardDiv.innerHTML += `
+                <div class="revealed-card">
+                    <p><strong>${data.card.category}: ${data.card.title}</strong></p>
+                    ${descriptionHTML}
+                </div>`;
         }
     });
-
     socket.on('new_bonus_revealed', (data) => {
         // ... (этот код у вас правильный, оставляем без изменений)
         const placeholder = document.getElementById(`bonus-card-${data.index}`);
