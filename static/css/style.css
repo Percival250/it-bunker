@@ -184,3 +184,25 @@ button:disabled {
     font-size: 1.1rem;
     margin-left: 8px;
 }
+.company-decks {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+}
+#disaster-deck, #bonus-deck {
+    flex-basis: 50%;
+}
+.company-card-placeholder {
+    border: 2px dashed var(--border-color);
+    border-radius: 8px;
+    padding: 10px;
+    text-align: center;
+    margin-top: 10px;
+}
+.bonus-card-placeholder.host-clickable {
+    cursor: pointer;
+    border-color: var(--primary-color);
+}
+.bonus-card-placeholder.host-clickable:hover {
+    background-color: #333336;
+}

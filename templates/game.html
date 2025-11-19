@@ -2,7 +2,19 @@
 {% extends 'base.html' %}
 {% block content %}
     <h1>Игровая комната: <span id="room-code" class="room-code-span">{{ room_code }}</span></h1>
-    
+    <div class="card">
+        <h2>Условия Компании</h2>
+        <div class="company-decks">
+            <div id="disaster-deck">
+                <h4>Катастрофа (Компания)</h4>
+                <!-- Сюда будет вставлена карта -->
+            </div>
+            <div id="bonus-deck">
+                <h4>Плюсы Компании</h4>
+                <!-- Сюда будут вставлены карты -->
+            </div>
+        </div>
+    </div>
     <!-- Обертка для CSS Grid -->
     <div class="game-grid">
         

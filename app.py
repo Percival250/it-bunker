@@ -193,47 +193,66 @@ def on_start_game(data):
     sid = request.sid
 
     if room_code in rooms and rooms[room_code]['host_sid'] == sid:
-        if rooms[room_code].get('game_started', False):
-            return
+        if rooms[room_code].get('game_started', False): return
         
-        # Инициализируем новые поля состояния игры
         rooms[room_code]['game_started'] = True
-        rooms[room_code]['hands'] = {} # <-- Сохраняем руки игроков здесь
+        rooms[room_code]['hands'] = {}
         rooms[room_code]['votes'] = {}
         rooms[room_code]['voting_active'] = False
+        
+        # --- НОВАЯ ЛОГИКА: СОЗДАЕМ КОЛОДЫ КОМПАНИИ ---
+        rooms[room_code]['company_disaster'] = None # Карта "Катастрофы"
+        rooms[room_code]['company_bonuses'] = [] # 5 карт "Плюсов"
+        rooms[room_code]['revealed_bonuses'] = [] # Раскрытые плюсы
 
         players_in_room = rooms[room_code]['players']
         
         with app.app_context():
-            # ... (код для получения и перемешивания карт остается таким же) ...
             all_cards_in_module = Card.query.filter_by(module=data['module']).all()
-            # ... (группировка и перемешивание) ...
+            
+            # --- Отделяем карты игроков от карт компании ---
+            player_cards = [c for c in all_cards_in_module if c.category not in ['Компания', 'company_card']]
+            company_disasters = [c for c in all_cards_in_module if c.category == 'Компания']
+            company_bonuses_deck = [c for c in all_cards_in_module if c.category == 'company_card']
+
+            # --- Формируем колоды игры ---
+            if company_disasters:
+                random.shuffle(company_disasters)
+                disaster_card = company_disasters.pop()
+                rooms[room_code]['company_disaster'] = {'title': disaster_card.title, 'description': disaster_card.description}
+
+            if company_bonuses_deck:
+                random.shuffle(company_bonuses_deck)
+                # Берем до 5 карт, если их меньше, то берем сколько есть
+                rooms[room_code]['company_bonuses'] = [{'title': b.title, 'description': b.description} for b in company_bonuses_deck[:5]]
+            
+            # --- Раздаем карты игрокам из отфильтрованной колоды ---
             cards_by_category = {}
-            for card in all_cards_in_module:
+            for card in player_cards:
+                # ... (дальнейшая логика группировки, перемешивания и раздачи карт игрокам остается БЕЗ ИЗМЕНЕНИЙ)
                 if card.category not in cards_by_category:
                     cards_by_category[card.category] = []
                 cards_by_category[card.category].append(card)
+            # ... и так далее
+
             for category in cards_by_category:
                 random.shuffle(cards_by_category[category])
 
             for player_sid, username in players_in_room.items():
+                # ... (логика раздачи без изменений)
                 player_hand = []
-                # ... (логика раздачи карт через pop() остается такой же) ...
                 for category, cards in cards_by_category.items():
                     if cards: player_hand.append(cards.pop())
-
-                # Конвертируем карты в словари
                 cards_data = [{'title': c.title, 'description': c.description, 'category': c.category} for c in player_hand]
-                
-                # ГЛАВНОЕ: Сохраняем руку игрока на сервере
                 rooms[room_code]['hands'][player_sid] = cards_data
-                
-                # Отправляем карты лично игроку
                 emit('deal_cards', {'cards': cards_data}, to=player_sid)
-                print(f"Игроку {username} (sid: {player_sid}) розданы и сохранены карты.")
 
-        emit('game_started', {'message': f"Игра началась! Карты розданы."}, to=room_code)
-
+        # Отправляем всем информацию о количестве карт компании для отрисовки "рубашек"
+        emit('game_started', {
+            'message': f"Игра началась! Карты розданы.",
+            'disaster_card_count': 1 if rooms[room_code]['company_disaster'] else 0,
+            'bonus_card_count': len(rooms[room_code]['company_bonuses'])
+        }, to=room_code)
     else:
         print(f"Попытка начать игру не от хоста в комнате {room_code} от sid {sid}")
 
@@ -255,6 +274,26 @@ def on_reveal_card(data):
                 'username': username,
                 'card': card_data
             }, to=room_code)
+
+@socketio.on('reveal_bonus_card')
+def on_reveal_bonus_card():
+    sid = request.sid
+    if sid in player_to_room:
+        room_code = player_to_room[sid]
+        # Только хост может раскрывать карты
+        if room_code in rooms and rooms[room_code]['host_sid'] == sid:
+            # Проверяем, есть ли еще нераскрытые карты
+            bonuses = rooms[room_code]['company_bonuses']
+            revealed = rooms[room_code]['revealed_bonuses']
+            
+            if len(revealed) < len(bonuses):
+                # Раскрываем следующую карту по порядку
+                card_to_reveal = bonuses[len(revealed)]
+                revealed.append(card_to_reveal)
+                
+                # Отправляем всем информацию о раскрытой карте
+                emit('new_bonus_revealed', {'card': card_to_reveal, 'index': len(revealed) - 1}, to=room_code)
+                print(f"Хост в комнате {room_code} раскрыл карту бонуса: {card_to_reveal['title']}")
 
 @socketio.on('start_voting')
 def on_start_voting():
