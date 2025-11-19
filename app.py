@@ -1,6 +1,7 @@
 import eventlet
 eventlet.monkey_patch()
-
+from eventlet.support import psycopg2_patcher
+psycopg2_patcher.patch()
 # 2. Теперь импортируем все остальное
 from flask import Flask, render_template, request, redirect, url_for
 from flask_socketio import SocketIO, join_room, leave_room, emit
