@@ -1,7 +1,8 @@
 import eventlet
-eventlet.monkey_patch()
-from eventlet.support import psycopg2_patcher
-psycopg2_patcher.patch()
+# Говорим monkey_patch, чтобы он сам позаботился о драйвере psycopg
+eventlet.monkey_patch(psycopg=True) 
+
+# 2. Теперь импортируем все остальное
 # 2. Теперь импортируем все остальное
 from flask import Flask, render_template, request, redirect, url_for
 from flask_socketio import SocketIO, join_room, leave_room, emit
