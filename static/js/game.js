@@ -109,7 +109,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 playerBoard.classList.add('player-board');
                 playerBoard.id = playerBoardID;
                 // Сразу добавляем место для счетчика голосов
-                playerBoard.innerHTML = `<h3>${player} <span class="vote-count"></span></h3><div class="cards-on-board"><p>Карты не раскрыты</p></div>`;
+                playerBoard.innerHTML = `<h3 data-username="${player}">${player} <span class="vote-count"></span></h3><div class="cards-on-board"><p>Карты не раскрыты</p></div>`;
                 if (revealedCardsArea.innerText.includes('Ожидание')) revealedCardsArea.innerHTML = '';
                 revealedCardsArea.appendChild(playerBoard);
             }
