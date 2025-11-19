@@ -129,7 +129,7 @@ def add_test_data():
 # --- ОБРАБОТЧИКИ СОБЫТИЙ (SOCKET.IO) ---
 
 @socketio.on('connect')
-def on_connect():
+def on_connect(auth=None):
     # Отправляем список доступных модулей при подключении
     with app.app_context():
         modules = db.session.query(Card.module).distinct().all()
