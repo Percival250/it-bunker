@@ -27,7 +27,7 @@ db = SQLAlchemy(app)
 
 # --- ИНИЦИАЛИЗАЦИЯ SOCKETIO ---
 # Мы "обертываем" наше приложение в SocketIO
-socketio = SocketIO(app)
+socketio = SocketIO(app, async_mode='eventlet', ping_timeout=20, ping_interval=10)
 
 
 # --- МОДЕЛИ ДАННЫХ (остаются без изменений) ---
