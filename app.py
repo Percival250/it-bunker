@@ -279,7 +279,6 @@ def on_cast_vote(data):
         room_code = player_to_room[voter_sid]
         
         if rooms[room_code].get('voting_active', False):
-            # Находим sid того, за кого проголосовали
             voted_for_sid = None
             for sid, username in rooms[room_code]['players'].items():
                 if username == voted_for_username:
@@ -288,14 +287,21 @@ def on_cast_vote(data):
             
             if voted_for_sid:
                 votes = rooms[room_code]['votes']
-                # Логика "включить/выключить" голос
                 if votes.get(voter_sid) == voted_for_sid:
-                    votes.pop(voter_sid) # Убираем голос, если нажал повторно
+                    votes.pop(voter_sid)
                 else:
-                    votes[voter_sid] = voted_for_sid # Засчитываем голос
+                    votes[voter_sid] = voted_for_sid
 
-                # Отправляем всем обновленную информацию о голосах
-                emit('vote_update', {'votes': votes}, to=room_code)
+                # --- НОВАЯ УЛУЧШЕННАЯ ЛОГИКА ---
+                # Теперь мы сами считаем голоса на сервере
+                vote_counts = {}
+                for target_sid in votes.values():
+                    target_username = rooms[room_code]['players'].get(target_sid)
+                    if target_username:
+                        vote_counts[target_username] = vote_counts.get(target_username, 0) + 1
+                
+                # Отправляем всем уже готовый подсчет голосов
+                emit('vote_update', {'vote_counts': vote_counts}, to=room_code)
 
 @socketio.on('end_voting')
 def on_end_voting():

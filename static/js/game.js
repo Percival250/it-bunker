@@ -90,29 +90,51 @@ document.addEventListener('DOMContentLoaded', () => {
         playersList.innerHTML = '';
         players.forEach(player => {
             const li = document.createElement('li');
-li.textContent = player;
+            li.textContent = player;
             playersList.appendChild(li);
         });
-
-        // Синхронизируем доски игроков на общем столе
+    
         const currentPlayerBoards = new Set(players.map(p => `board-for-${p.replace(/\s+/g, '-')}`));
         Array.from(revealedCardsArea.querySelectorAll('.player-board')).forEach(board => {
-            if (!currentPlayerBoards.has(board.id)) board.remove();
+            // Не удаляем доску, если на ней есть метка "выбыл"
+            if (!currentPlayerBoards.has(board.id) && !board.classList.contains('kicked')) {
+                board.remove();
+            }
         });
-
+    
         players.forEach(player => {
             const playerBoardID = `board-for-${player.replace(/\s+/g, '-')}`;
             if (!document.getElementById(playerBoardID)) {
                 const playerBoard = document.createElement('div');
                 playerBoard.classList.add('player-board');
                 playerBoard.id = playerBoardID;
-                playerBoard.innerHTML = `<h3>${player}</h3><div class="cards-on-board"><p>Карты не раскрыты</p></div>`;
+                // Сразу добавляем место для счетчика голосов
+                playerBoard.innerHTML = `<h3>${player} <span class="vote-count"></span></h3><div class="cards-on-board"><p>Карты не раскрыты</p></div>`;
                 if (revealedCardsArea.innerText.includes('Ожидание')) revealedCardsArea.innerHTML = '';
                 revealedCardsArea.appendChild(playerBoard);
             }
         });
+    
+        if (players.length === 0 && revealedCardsArea.querySelectorAll('.player-board.kicked').length === 0) {
+            revealedCardsArea.innerHTML = '<p>Ожидание игроков...</p>';
+        }
+    });
 
-        if (players.length === 0) revealedCardsArea.innerHTML = '<p>Ожидание игроков...</p>';
+    socket.on('vote_update', (data) => {
+        const voteCounts = data.vote_counts; // {'ИмяИгрока': 2, 'ДругойИгрок': 1}
+        
+        // Сначала сбрасываем все счетчики
+        document.querySelectorAll('.vote-count').forEach(span => span.textContent = '');
+    
+        // Устанавливаем новые значения
+        for (const username in voteCounts) {
+            const playerBoardID = `board-for-${username.replace(/\s+/g, '-')}`;
+            const playerBoard = document.getElementById(playerBoardID);
+            if (playerBoard) {
+                const voteCountSpan = playerBoard.querySelector('.vote-count');
+                voteCountSpan.textContent = `[${voteCounts[username]}]`;
+            }
+        }
     });
 
     // Сервер присылает нам наши карты
@@ -176,27 +198,38 @@ li.textContent = player;
             startVotingBtn.style.display = 'block';
             endVotingBtn.style.display = 'none';
         }
+        // Сбрасываем счетчики и стили
+        document.querySelectorAll('.vote-count').forEach(span => span.textContent = '');
         document.querySelectorAll('.player-board').forEach(board => {
             board.style.cursor = 'default';
-            board.style.border = '1px solid var(--border-color)'; // Сбрасываем подсветку
+            board.style.border = '1px solid var(--border-color)';
             board.onclick = null;
         });
-
+    
         if (data.kicked_player) {
             alert(`Игрок ${data.kicked_player} исключен!`);
             const boardId = `board-for-${data.kicked_player.replace(/\s+/g, '-')}`;
             const kickedPlayerBoard = document.getElementById(boardId);
             if (kickedPlayerBoard) {
-                const cardsArea = kickedPlayerBoard.querySelector('.cards-on-board');
-                cardsArea.innerHTML = '<h4>Карты изгнанного:</h4>';
-                data.revealed_cards.forEach(card => {
-                     cardsArea.innerHTML += `<p><small>${card.category}: ${card.title}</small></p>`;
-                });
+                // --- НОВАЯ ЛОГИКА ОТОБРАЖЕНИЯ ВЫБЫВШЕГО ---
+                kickedPlayerBoard.classList.add('kicked'); // Добавляем класс "выбывший"
                 kickedPlayerBoard.style.backgroundColor = 'var(--danger-color)';
-                kickedPlayerBoard.style.opacity = '0.5';
+                kickedPlayerBoard.style.opacity = '0.7';
+    
+                const header = kickedPlayerBoard.querySelector('h3');
+                header.innerHTML = `${data.kicked_player} [ВЫБЫЛ]`;
+    
+                const cardsArea = kickedPlayerBoard.querySelector('.cards-on-board');
+                cardsArea.innerHTML = '<h4>Все карты игрока:</h4>';
+                data.revealed_cards.forEach(card => {
+                     cardsArea.innerHTML += `
+                        <div class="revealed-card" style="background-color: #444; border-color: #666;">
+                            <p style="margin: 0;"><strong>${card.category}:</strong> ${card.title}</p>
+                        </div>`;
+                });
             }
         } else {
-            alert(data.message); // Показываем сообщение о ничьей
+            alert(data.message);
         }
     });
 
