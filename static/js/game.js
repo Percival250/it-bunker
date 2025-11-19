@@ -159,24 +159,40 @@ document.addEventListener('DOMContentLoaded', () => {
             hostVotingControls.style.display = 'block';
         }
         
-        // Отрисовываем "рубашки" карт компании
-        disasterDeckDiv.innerHTML += `<div class="company-card-placeholder">???</div>`;
+        // --- НОВАЯ ЛОГИКА ОТОБРАЖЕНИЯ КАТАСТРОФЫ ---
+        const disasterCard = data.disaster_card;
+        if (disasterCard) {
+            const placeholder = disasterDeckDiv.querySelector('.company-card-placeholder');
+            if (placeholder) {
+                placeholder.innerHTML = `<strong>${disasterCard.title}</strong><p>${disasterCard.description || ''}</p>`;
+                placeholder.classList.add('revealed'); // Добавляем класс для стилей/анимации
+            }
+        } else {
+            // Если карта катастрофы почему-то не пришла
+            disasterDeckDiv.innerHTML = `<div class="company-card-placeholder">Нет данных о компании</div>`;
+        }
         
-        bonusDeckDiv.innerHTML += '<div id="bonus-cards-placeholders"></div>';
+        // Отрисовываем "рубашки" карт бонусов (этот код остается)
+        const bonusPlaceholdersContainer = document.getElementById('bonus-cards-placeholders');
+        if (bonusPlaceholdersContainer) {
+            bonusPlaceholdersContainer.innerHTML = ''; // Очищаем на случай пересоздания
+        } else {
+            bonusDeckDiv.innerHTML += '<div id="bonus-cards-placeholders"></div>';
+        }
         const bonusPlaceholders = document.getElementById('bonus-cards-placeholders');
+    
         for (let i = 0; i < data.bonus_card_count; i++) {
             const placeholder = document.createElement('div');
             placeholder.classList.add('company-card-placeholder', 'bonus-card-placeholder');
             placeholder.id = `bonus-card-${i}`;
             placeholder.innerText = 'Плюс Компании';
             
-            // Если мы хост, делаем карту кликабельной
             if (isHost) {
                 placeholder.classList.add('host-clickable');
                 placeholder.onclick = () => {
-                    // Отправляем событие, только если карта еще не раскрыта
-                    if (placeholder.innerText === 'Плюс Компании') {
-                        socket.emit('reveal_bonus_card');
+                    if (!placeholder.classList.contains('revealed')) { // Раскрываем только один раз
+                        // Отправляем не просто событие, а ИНДЕКС карты, которую хотим раскрыть
+                        socket.emit('reveal_bonus_card', { 'index': i });
                     }
                 };
             }
@@ -196,16 +212,17 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('new_bonus_revealed', (data) => {
-        const card = data.card;
-        const index = data.index;
-        
-        const placeholder = document.getElementById(`bonus-card-${index}`);
-        if (placeholder) {
-            placeholder.innerHTML = `<strong>${card.title}</strong><p>${card.description || ''}</p>`;
-            placeholder.classList.remove('host-clickable'); // Делаем некликабельной
-            placeholder.onclick = null;
-        }
-    });
+    const card = data.card;
+    const index = data.index;
+    
+    const placeholder = document.getElementById(`bonus-card-${index}`);
+    if (placeholder) {
+        placeholder.innerHTML = `<strong>${card.title}</strong><p>${card.description || ''}</p>`;
+        placeholder.classList.remove('host-clickable');
+        placeholder.classList.add('revealed');
+        placeholder.onclick = null;
+    }
+});
     // --- ЛОГИКА ГОЛОСОВАНИЯ ---
     
     // Голосование началось

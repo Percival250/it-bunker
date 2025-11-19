@@ -250,7 +250,7 @@ def on_start_game(data):
         # Отправляем всем информацию о количестве карт компании для отрисовки "рубашек"
         emit('game_started', {
             'message': f"Игра началась! Карты розданы.",
-            'disaster_card_count': 1 if rooms[room_code]['company_disaster'] else 0,
+            'disaster_card': rooms[room_code]['company_disaster'], # <-- ОТПРАВЛЯЕМ КАРТУ
             'bonus_card_count': len(rooms[room_code]['company_bonuses'])
         }, to=room_code)
     else:
@@ -276,24 +276,24 @@ def on_reveal_card(data):
             }, to=room_code)
 
 @socketio.on('reveal_bonus_card')
-def on_reveal_bonus_card():
+def on_reveal_bonus_card(data):
     sid = request.sid
+    card_index = data.get('index') # Получаем индекс карты, на которую нажал хост
+    
+    if card_index is None: return
+
     if sid in player_to_room:
         room_code = player_to_room[sid]
-        # Только хост может раскрывать карты
         if room_code in rooms and rooms[room_code]['host_sid'] == sid:
-            # Проверяем, есть ли еще нераскрытые карты
             bonuses = rooms[room_code]['company_bonuses']
-            revealed = rooms[room_code]['revealed_bonuses']
             
-            if len(revealed) < len(bonuses):
-                # Раскрываем следующую карту по порядку
-                card_to_reveal = bonuses[len(revealed)]
-                revealed.append(card_to_reveal)
+            # Проверяем, что такая карта есть и она еще не раскрыта
+            if card_index < len(bonuses) and bonuses[card_index] not in rooms[room_code]['revealed_bonuses']:
+                card_to_reveal = bonuses[card_index]
+                rooms[room_code]['revealed_bonuses'].append(card_to_reveal)
                 
-                # Отправляем всем информацию о раскрытой карте
-                emit('new_bonus_revealed', {'card': card_to_reveal, 'index': len(revealed) - 1}, to=room_code)
-                print(f"Хост в комнате {room_code} раскрыл карту бонуса: {card_to_reveal['title']}")
+                emit('new_bonus_revealed', {'card': card_to_reveal, 'index': card_index}, to=room_code)
+                print(f"Хост в комнате {room_code} раскрыл карту бонуса #{card_index}: {card_to_reveal['title']}")
 
 @socketio.on('start_voting')
 def on_start_voting():
